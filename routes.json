@@ -1,0 +1,7 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/test/",
+    "name": "github.com/SamsonGedefa/simulator/main.go/api/v1.Test.Test-fm"
+  }
+]
