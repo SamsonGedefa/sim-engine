@@ -13,7 +13,7 @@ func main() {
 	fx.New(
 		fx.Provide(
 			config.Load,
-			database.Connect,
+			database.NewPGX,
 			httpserver.New,
 		),
 
