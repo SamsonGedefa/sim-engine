@@ -6,14 +6,57 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
+	"github.com/SamsonGedefa/simulator/main.go/internal/order"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/shopspring/decimal"
+)
+
+// CREATE TABLE market_data (
+//     id SERIAL PRIMARY KEY,
+//     symbol VARCHAR(10) NOT NULL,
+//     high FLOAT8 NOT NULL,
+//     low FLOAT8 NOT NULL,
+//     open FLOAT8 NOT NULL,
+//     close FLOAT8 NOT NULL,
+//     volume INTEGER NOT NULL,
+//     timestamp TIMESTAMP NOT NULL
+// );
+
+// CREATE TABLE order_books (
+//     id SERIAL PRIMARY KEY,
+//     symbol VARCHAR(10) NOT NULL,
+//     bid_price FLOAT8 NOT NULL,
+//     bid_size INTEGER NOT NULL,
+//     ask_price FLOAT8 NOT NULL,
+//     ask_size INTEGER NOT NULL
+// );
+
+type (
+
+	// OrderBook represents the current order book for a symbol.
+	OrderBook struct {
+		Symbol string        `json:"symbol"`
+		Bids   []order.Order `json:"bids"`
+		Asks   []order.Order `json:"asks"`
+	}
+
+	CandleStick struct {
+		High      decimal.Decimal `json:"high"`
+		Low       decimal.Decimal `json:"low"`
+		Open      decimal.Decimal `json:"open"`
+		Close     decimal.Decimal `json:"close"`
+		Volume    decimal.Decimal `json:"volume"`
+		Timestamp time.Time       `json:"timestamp"`
+	}
 )
 
 type Gateway interface {
-	GetRealTimeBars(symbol string) (*MarketData, error)
-	GetOrderBook(symbol string) (*OrderBook, error)
+	GetRealTimeBars(symbol string) (CandleStick, error)
+	GetOrderBook(symbol string) (OrderBook, error)
 	WebSocketHandler(w http.ResponseWriter, r *http.Request)
 }
 
@@ -85,47 +128,46 @@ func (g *gateway) DeregisterClient(client *websocket.Conn) {
 	g.mutex.Unlock()
 }
 
-func (g *gateway) GetRealTimeBars(symbol string) (*MarketData, error) {
-	marketData, err := g.DataProvider.GetRealTimeBars(symbol)
+func (g *gateway) GetRealTimeBars(symbol string) (CandleStick, error) {
+	candle, err := g.DataProvider.GetRealTimeBars(symbol)
 	if err != nil {
-		return nil, err
+		return CandleStick{}, err
 	}
 
-	// Cache the market data in Redis
-	serializedData, err := marketData.MarshalJSON()
+	serializedData, err := json.Marshal(candle)
 	if err != nil {
 		log.Println("Failed to serialize market data:", err)
-		return nil, err
+		return CandleStick{}, err
 	}
 	g.Redis.Set(context.Background(), "realtimebars:"+symbol, serializedData, 0)
 
 	// TODO: store market data in postgres
 
 	if err = g.cacheInRedis("realtimebars:"+symbol, serializedData); err != nil {
-		return nil, err
+		return CandleStick{}, err
 	}
 
-	return &marketData, nil
+	return candle, nil
 }
 
-func (g *gateway) GetOrderBook(symbol string) (*OrderBook, error) {
+func (g *gateway) GetOrderBook(symbol string) (OrderBook, error) {
 	orderBook, err := g.DataProvider.GetOrderBook(symbol)
 	if err != nil {
-		return nil, err
+		return OrderBook{}, err
 	}
 
-	serializedData, err := orderBook.MarshalJSON()
+	serializedData, err := json.Marshal(orderBook)
 	if err != nil {
 		log.Println("Failed to serialize order book:", err)
-		return nil, err
+		return OrderBook{}, err
 	}
 
 	// TODO: store order book in postgres
 
 	if err = g.cacheInRedis("orderbook:"+symbol, serializedData); err != nil {
-		return nil, err
+		return OrderBook{}, err
 	}
-	return &orderBook, nil
+	return orderBook, nil
 }
 
 func (g *gateway) WebSocketHandler(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +224,7 @@ func (g *gateway) sendMarketDataForTicker(conn *websocket.Conn, ticker string) {
 		log.Println("Failed to fetch market data for ticker:", ticker, err)
 		return
 	}
-	responseData, err := data.MarshalJSON()
+	responseData, err := json.Marshal(data)
 	if err != nil {
 		log.Println("Failed to marshal market data:", err)
 		return

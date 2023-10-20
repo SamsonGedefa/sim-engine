@@ -7,16 +7,16 @@ N = 1
 
 migrate-create:
 	@echo "---Creating migration files---"
-	migrate create -ext sql -dir $(PWD)/simulator/db/migrations -seq -digits 5 $(NAME)
+	migrate create -ext sql -dir $(PWD)/db/migrations -seq -digits 5 $(NAME)
 
 migrate-up:
-	migrate -source file://$(PWD)/simulator/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable up $(N)
+	migrate -source file://$(PWD)/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable up $(N)
 
 migrate-down:
-	migrate -source file://$(PWD)/simulator/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable down $(N)
+	migrate -source file://$(PWD)/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable down $(N)
 
 migrate-force:
-	migrate -source file://$(PWD)/simulator/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable force $(VERSION)
+	migrate -source file://$(PWD)/db/migrations -database postgres://root:password@localhost:$(PORT)/simulator-dev?sslmode=disable force $(VERSION)
 
 sqlc:
 	docker run --rm -v "$(PWD):/src" -w /src kjconroy/sqlc generate
